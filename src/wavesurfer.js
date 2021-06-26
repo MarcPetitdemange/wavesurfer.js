@@ -296,7 +296,8 @@ export default class WaveSurfer extends util.Observer {
         },
         vertical: false,
         waveColor: '#999',
-        xhr: {}
+        xhr: {},
+        keyboardZoomable: false
     };
 
     /** @private */
@@ -448,6 +449,7 @@ export default class WaveSurfer extends util.Observer {
         /** @private */
         this.peakCache = null;
 
+
         // cache constructor objects
         if (typeof this.params.renderer !== 'function') {
             throw new Error('Renderer parameter is invalid');
@@ -506,6 +508,8 @@ export default class WaveSurfer extends util.Observer {
                 ? this.params.responsive
                 : 100
         );
+
+        this.addZoomEvent();
 
         return this;
     }
@@ -705,6 +709,7 @@ export default class WaveSurfer extends util.Observer {
             }
             this.fireEvent('scroll', e);
         });
+
     }
 
     /**
@@ -1244,8 +1249,8 @@ export default class WaveSurfer extends util.Observer {
     drawBuffer() {
         const nominalWidth = Math.round(
             this.getDuration() *
-                this.params.minPxPerSec *
-                this.params.pixelRatio
+            this.params.minPxPerSec *
+            this.params.pixelRatio
         );
         const parentWidth = this.drawer.getWidth();
         let width = nominalWidth;
@@ -1416,7 +1421,7 @@ export default class WaveSurfer extends util.Observer {
                 // eslint-disable-next-line no-console
                 console.warn(
                     'Preload parameter of wavesurfer.load will be ignored because:\n\t- ' +
-                        activeReasons.join('\n\t- ')
+                    activeReasons.join('\n\t- ')
                 );
                 // stop invalid values from being used
                 preload = null;
@@ -1752,4 +1757,82 @@ export default class WaveSurfer extends util.Observer {
         this.isReady = false;
         this.arraybuffer = null;
     }
+
+
+    /**
+     * Check if the parameter keyboardZoomable is defined to true
+     * In this case, an event listener is add to the container.
+     * This listener will check if a scroll happend on the container with the ctrl key pressed.
+     * wheelEventWrapper is the event handler which is stored to be removed if the parameter keyboardZoomable is set to false.
+     * currentPxPerSec is stored to know the current zoom ration.
+     * @see keyboardZoom
+     */
+    addZoomEvent(){
+        if (this.params.keyboardZoomable ) {
+            this.temporary = {currentPxPerSec : Number(this.params.minPxPerSec), wheelEventWrapper: (e) => this.keyboardZoom(e, this)};
+            this.container.addEventListener("wheel", this.temporary.wheelEventWrapper, true);
+            document.addEventListener("keydown", (e) => {
+                if (e.ctrlKey){
+                    let css = util.extractSelector(this.container) + " *" + ':hover{ cursor: zoom-in; }';
+                    if (document.querySelector("style#tempStyleZoom") == null) {
+                        document.querySelector("body").insertAdjacentHTML("afterend", "<style id='tempStyleZoom'>" + css + "</style>");
+                    }
+                }
+            }, true);
+            document.addEventListener("keyup", (e) => {
+                if (document.querySelector("style#tempStyleZoom") != null) {
+                    document.querySelector("style#tempStyleZoom").parentElement.removeChild(document.querySelector("style#tempStyleZoom"));
+                }
+            }, true);
+        }
+    }
+
+    /**
+     * Check if the parameter keyboardZoomable is defined to false
+     * In this case, the mouse wheel event listener is removed.
+     * @see keyboardZoom
+     */
+    removeZoomEvent(){
+        if (!this.params.keyboardZoomable && this.temporary.wheelEventWrapper != null) {
+            this.container.removeEventListener("wheel", this.temporary.wheelEventWrapper, true);
+        }
+    }
+
+
+    /**
+     * Manage the zoom on the container by using the CTRL key + the mouse wheel
+     * @param {event} e javascript wheel event
+     * @param {WaveSurfer} wavesurfer  correspond to the "this" of the current Class;
+     * @see addZoomEvent()
+     * @see zoom()
+     */
+    keyboardZoom(e, wavesurfer){
+        if (e.ctrlKey == true)
+        {
+            e.preventDefault();
+            if (e.deltaY > 0 && wavesurfer.temporary.currentPxPerSec >= wavesurfer.params.minPxPerSec) {
+                wavesurfer.temporary.currentPxPerSec -= 20;
+                wavesurfer.zoom(wavesurfer.temporary.currentPxPerSec);
+            } else if (wavesurfer.temporary.currentPxPerSec <= 1000) {
+                wavesurfer.temporary.currentPxPerSec += 20;
+                wavesurfer.zoom(wavesurfer.temporary.currentPxPerSec);
+            }
+        }
+    }
+
+    /**
+     * Function to defined if the current wavesurfer can be zoomed using the keyboard or not.
+     * @param {boolean} keyboardZoomable if is true, enable the keyboard zoom else disable it.
+     */
+    setKeyboardZoomable(keyboardZoomable){
+        this.params.keyboardZoomable = keyboardZoomable;
+        if (keyboardZoomable) {
+            this.addZoomEvent();
+        } else if (!keyboardZoomable) {
+            this.removeZoomEvent();
+        }
+
+    }
+
+
 }

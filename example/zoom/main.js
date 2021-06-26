@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
         progressColor: '#3B8686',
         backend: 'MediaElement',
         scrollParent: true,
+        keyboardZoomable: true,
         plugins: [
             WaveSurfer.regions.create({
                 regions: [
